@@ -8204,15 +8204,22 @@ function showToast(message, duration) {
 }
 
 // ===== BACK BUTTON — go home instead of leaving site =====
+// Use a flag to ignore the popstate that fires immediately after pushState on load
+var _backBtnReady = false;
 window.addEventListener('load', function() {
-  history.pushState(null, document.title, location.href);
+  history.pushState({ ggs: 1 }, '');
+  // Only enable back button handling after a short delay
+  // so the load-time popstate doesn't trigger a false home redirect
+  setTimeout(function() { _backBtnReady = true; }, 500);
 });
-window.addEventListener('popstate', function() {
+window.addEventListener('popstate', function(e) {
+  if (!_backBtnReady) return;
   var p = window._godsgracePage || 'home';
   if (p !== 'home') {
     showPage('home');
   }
-  history.pushState(null, document.title, location.href);
+  // Re-push so next back press is also caught
+  history.pushState({ ggs: 1 }, '');
 });
 
 </script>
