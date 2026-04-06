@@ -3664,7 +3664,7 @@ async function submitAdmission(e) {
       email: data.email || 'applicant@godsgrace.edu.ng',
       amount: 500000,
       currency: 'NGN',
-      ref: 'GOD'S GRACE_ADM_' + Date.now(),
+      ref: 'GODS_GRACE_ADM_' + Date.now(),
       metadata: { custom_fields: [{ display_name: 'Applicant', variable_name: 'applicant', value: `${data.firstName} ${data.lastName}` }] },
       callback: function(response) {
         document.getElementById('admSuccess').innerHTML = `✅ <strong>Application & payment successful!</strong> Reference: <strong>${response.reference}</strong>. Check your email for confirmation. We will contact you with exam details.`;
@@ -7133,7 +7133,7 @@ async function processFeePayment() {
     resetFeeForm(); return;
   }
   if(typeof PaystackPop!=='undefined'){
-    PaystackPop.setup({ key:'pk_test_28a11f626c0b53bd1307cb18e42d21929c88b0b0', email:feeState.studentEmail||'student@godsgrace.edu.ng', amount:payAmount*100, currency:'NGN', ref:'GOD'S GRACE_FEES_'+Date.now(),
+    PaystackPop.setup({ key:'pk_test_28a11f626c0b53bd1307cb18e42d21929c88b0b0', email:feeState.studentEmail||'student@godsgrace.edu.ng', amount:payAmount*100, currency:'NGN', ref:'GODS_GRACE_FEES_'+Date.now(),
       callback:function(r){ confirmPayment(payAmount,'Paystack',r.reference); if(suc){ suc.innerHTML=`✅ <strong>Payment Confirmed!</strong> ₦${payAmount.toLocaleString()} received via Paystack. Ref: <strong>${r.reference}</strong>. Balance updated.`; suc.style.background='#d4edda';suc.style.border='1px solid #c3e6cb';suc.style.color='#155724';suc.classList.add('show'); } resetFeeForm(); },
       onClose:function(){ alert('Payment cancelled. Nothing was recorded.'); }
     }).openIframe();
@@ -7681,7 +7681,7 @@ function generateReceipt(payment) {
   doc.setTextColor(201, 150, 42);
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
-  doc.text('GOD'S GRACE SECONDARY SCHOOL', pageW/2, 18, { align: 'center' });
+  doc.text("GOD'S GRACE SECONDARY SCHOOL", pageW/2, 18, { align: 'center' });
   doc.setFontSize(10);
   doc.setTextColor(255, 255, 255);
   doc.text('Sango Ota, Ogun State | 08150898386 | Godgrace@gmail.com', pageW/2, 28, { align: 'center' });
@@ -7704,7 +7704,7 @@ function generateReceipt(payment) {
   doc.setTextColor(50, 50, 50);
 
   const details = [
-    ['Receipt No:', 'GOD'S GRACE-' + Date.now().toString().slice(-8)],
+    ['Receipt No:', 'GODS-GRACE-' + Date.now().toString().slice(-8)],
     ['Date:', payment.date || new Date().toLocaleDateString('en-NG')],
     ['Student Name:', payment.studentName || feeState.studentName || '—'],
     ['Admission No:', payment.admNo || feeState.admNo || '—'],
@@ -7753,9 +7753,9 @@ function generateReceipt(payment) {
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.text('This is a computer-generated receipt. No signature required.', pageW/2, footerY + 10, { align: 'center' });
-  doc.text('God's Grace Secondary School — Sango Ota, Ogun State, Nigeria', pageW/2, footerY + 20, { align: 'center' });
+  doc.text("God's Grace Secondary School — Sango Ota, Ogun State, Nigeria", pageW/2, footerY + 20, { align: 'center' });
 
-  doc.save(`GOD'S GRACE_Receipt_${payment.admNo || 'student'}_${Date.now()}.pdf`);
+  doc.save(`GodsGrace_Receipt_${payment.admNo || 'student'}_${Date.now()}.pdf`);
 }
 
 // ===== REPORT CARD GENERATOR =====
@@ -7814,7 +7814,7 @@ async function generateReportCard() {
   // If no real data — show message in PDF instead of demo
   if (!subjects.length) {
     if (!firebaseReady) {
-      alert('⚠️ Could not load results. Please open this site from the GitHub Pages URL, not from a local file.\n\nURL: https://ocrownuniversity.github.io/God's Grace-Secondary-school-/');
+      alert("⚠️ Could not load results. Please open this site from the GitHub Pages URL, not from a local file.\n\nURL: https://ocrownuniversity.github.io/Gods-Grace-Secondary-School/");
       return;
     }
     // No scores recorded yet — still generate blank PDF
@@ -7830,7 +7830,7 @@ async function generateReportCard() {
   doc.setTextColor(201, 150, 42);
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
-  doc.text('GOD'S GRACE SECONDARY SCHOOL', pageW/2, 16, { align: 'center' });
+  doc.text("GOD'S GRACE SECONDARY SCHOOL", pageW/2, 16, { align: 'center' });
   doc.setFontSize(9);
   doc.setTextColor(255, 255, 255);
   doc.text('Sango Ota, Ogun State | Excellence, Integrity, Progress', pageW/2, 25, { align: 'center' });
@@ -7916,9 +7916,9 @@ async function generateReportCard() {
   doc.setFont('helvetica','normal');
   doc.text("Principal's Signature: _________________________", 20, fY+10);
   doc.text('Next Term Begins: To be announced', 20, fY+20);
-  doc.text('God's Grace Secondary School — Sango Ota, Ogun State', pageW/2, fY+15, { align:'center' });
+  doc.text("God's Grace Secondary School — Sango Ota, Ogun State", pageW/2, fY+15, { align:'center' });
 
-  doc.save(`GOD'S GRACE_ReportCard_${name.replace(/\s/g,'_')}_${term.replace(/\s/g,'_')}.pdf`);
+  doc.save(`GodsGrace_ReportCard_${name.replace(/\s/g,'_')}_${term.replace(/\s/g,'_')}.pdf`);
 }
 
 // ===== PROSPECTUS PDF GENERATOR =====
@@ -7934,7 +7934,7 @@ function generateProspectus() {
   doc.setTextColor(201, 150, 42);
   doc.setFontSize(28);
   doc.setFont('helvetica', 'bold');
-  doc.text('GOD'S GRACE', pageW/2, 80, { align: 'center' });
+  doc.text("GOD'S GRACE", pageW/2, 80, { align: 'center' });
   doc.setFontSize(16);
   doc.text('SECONDARY SCHOOL', pageW/2, 96, { align: 'center' });
   doc.setTextColor(255, 255, 255);
@@ -7957,12 +7957,12 @@ function generateProspectus() {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('GOD'S GRACE SECONDARY SCHOOL — PROSPECTUS 2025/2026', pageW/2, 14, { align: 'center' });
+  doc.text("GOD'S GRACE SECONDARY SCHOOL — PROSPECTUS 2025/2026", pageW/2, 14, { align: 'center' });
 
   let y = 35;
   doc.setTextColor(7, 20, 48);
   const sections = [
-    ['ABOUT US', 'God's Grace Secondary School was established in Sango Ota, Ogun State with a vision to provide world-class secondary education. We offer JSS1–SSS3 for both Day and Boarding students.'],
+    ['ABOUT US', "God\'s Grace Secondary School was established in Sango Ota, Ogun State with a vision to provide world-class secondary education. We offer JSS1–SSS3 for both Day and Boarding students."],
     ['OUR VISION', 'To be the leading secondary school in South-West Nigeria, producing graduates who are academically excellent, morally upright, and globally competitive.'],
     ['ADMISSION REQUIREMENTS', 'JSS1: Primary School Leaving Certificate, age 10-13 years, pass entrance exam.\nSSS1: BECE/JSS3 result, minimum 5 distinctions, age 14-17 years, pass entrance exam.'],
     ['SCHOOL FEES (PER TERM)', 'JSS1-JSS3: ₦350,000 | SSS1-SSS3 Arts/Commercial: ₦400,000 | SSS Science: ₦430,000\nBoarding: JSS ₦85,000/term | SSS ₦95,000/term (separate from school fees)'],
@@ -7986,7 +7986,7 @@ function generateProspectus() {
     doc.line(20, y - 4, pageW - 20, y - 4);
   });
 
-  doc.save('GOD'S GRACE_School_Prospectus_2025.pdf');
+  doc.save('GodsGrace_School_Prospectus_2025.pdf');
 }
 
 // ===== AUTO ADMISSION NUMBER GENERATOR =====
