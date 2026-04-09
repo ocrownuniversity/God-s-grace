@@ -2871,12 +2871,10 @@ footer { background: var(--navy-dark); color: var(--white); padding: 60px 5% 30p
             <h2>📅 Class Attendance</h2>
             <span style="font-size:0.875rem;color:var(--gray-600);" id="teacherAttDate"></span>
           </div>
-          <div style="background:var(--gold-pale);border:1px solid rgba(201,150,42,0.3);border-radius:var(--radius);padding:0.75rem 1rem;margin-bottom:1.5rem;font-size:0.82rem;color:var(--gray-600);">
-            ℹ️ Only class teachers can mark attendance. Select your assigned class below.
-          </div>
-          <div style="display:flex;gap:10px;margin-bottom:1.5rem;flex-wrap:wrap;">
-            <select id="t_attClass" onchange="loadTeacherAttendance()" style="padding:8px 12px;font-size:0.875rem;border:1.5px solid var(--gray-200);border-radius:8px;flex:1;">
-              <option value="">Select Class</option>
+
+          <div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;">
+            <select id="t_attClass" onchange="loadTeacherAttendance()" style="padding:10px 14px;font-size:0.9rem;border:1.5px solid var(--gray-200);border-radius:8px;flex:1;min-width:160px;">
+              <option value="">-- Select Class --</option>
               <option>JSS 1</option><option>JSS 2</option><option>JSS 3</option>
               <option>SSS 1</option><option>SSS 1 Science</option><option>SSS 1 Arts</option><option>SSS 1 Commercial</option>
               <option>SSS 2</option><option>SSS 2 Science</option><option>SSS 2 Arts</option><option>SSS 2 Commercial</option>
@@ -2884,10 +2882,11 @@ footer { background: var(--navy-dark); color: var(--white); padding: 60px 5% 30p
             </select>
             <button class="btn btn-primary btn-sm" onclick="saveTeacherAttendance()">💾 Save Attendance</button>
           </div>
+
           <div id="teacherAttGrid" style="display:flex;flex-direction:column;gap:10px;">
-            <div style="text-align:center;padding:2rem;color:var(--gray-400);">Select a class to mark attendance.</div>
+            <div style="text-align:center;padding:2rem;color:var(--gray-400);">Select a class above to load students.</div>
           </div>
-          <div class="form-success" id="teacherAttSuccess" style="margin-top:1rem;">✅ Attendance saved successfully!</div>
+          <div class="form-success" id="teacherAttSuccess" style="margin-top:1rem;">✅ Attendance saved!</div>
         </div>
 
       </div><!-- end dash-main -->
@@ -5622,83 +5621,159 @@ async function loadStudentResults() {
 async function loadTeacherAttendance() {
   const grid = document.getElementById('teacherAttGrid');
   const dateEl = document.getElementById('teacherAttDate');
-  if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-NG', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  if (!grid) return;
+
+  if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-NG', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
 
   const clsEl = document.getElementById('t_attClass');
+
+  // Auto-fill if teacher has an assigned class
   if (currentTeacher.cls && clsEl && !clsEl.value) {
     clsEl.value = currentTeacher.cls;
   }
 
-  const cls = clsEl?.value || '';
-  if (!cls || !grid) {
-    if (grid) grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray-400);">Select a class to mark attendance.</div>';
+  const cls = (clsEl && clsEl.value) ? clsEl.value : '';
+
+  if (!cls) {
+    grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray-400);">Select a class above to load students.</div>';
     return;
   }
 
-  grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray-400);">⏳ Loading students...</div>';
+  grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray-400);">⏳ Loading students for <strong>' + cls + '</strong>...</div>';
+
   if (!firebaseReady) {
-    grid.innerHTML = '<div style="background:#f8d7da;color:#721c24;padding:1rem;border-radius:8px;">Firebase not connected. Check Firestore rules are set to allow read/write.</div>';
+    grid.innerHTML = '<div style="background:#f8d7da;color:#721c24;padding:1.25rem;border-radius:8px;font-size:0.875rem;">' +
+      '❌ <strong>Firebase not connected.</strong><br><br>' +
+      'Make sure you opened this site from the GitHub Pages URL, not a local file.<br>' +
+      'Also check your Firestore rules allow read/write.</div>';
     return;
   }
 
   try {
-    const parts = cls.split(' ');
-    const baseCls = parts.slice(0,2).join(' ');
-    const dept = parts.length > 2 ? parts.slice(2).join(' ') : '';
-
+    // Get all students, filter by class client-side
     const snap = await db.collection('students_db').get();
-    const students = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      .filter(s => {
-        if (s.cls !== baseCls) return false;
-        if (dept && s.dept && s.dept !== dept) return false;
-        return true;
-      })
-      .sort((a,b) => (a.name||'').localeCompare(b.name||''));
+
+    // Parse class — e.g. "SSS 1 Science" → baseCls="SSS 1", dept="Science"
+    var parts = cls.trim().split(' ');
+    var baseCls = parts.slice(0, 2).join(' ');  // e.g. "SSS 1"
+    var dept = parts.length > 2 ? parts.slice(2).join(' ') : ''; // e.g. "Science"
+
+    var allStudents = snap.docs.map(function(d) {
+      return Object.assign({ id: d.id }, d.data());
+    });
+
+    var students = allStudents.filter(function(s) {
+      var sClass = (s.cls || s.class || '').trim();
+      var sDept = (s.dept || '').trim();
+      // Match base class
+      if (sClass !== baseCls) return false;
+      // If department selected, match it
+      if (dept && sDept && sDept !== dept) return false;
+      return true;
+    }).sort(function(a, b) {
+      return (a.name || '').localeCompare(b.name || '');
+    });
 
     if (!students.length) {
-      grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray-400);">No students in <strong>' + cls + '</strong>.<br><small>Add students via Admin → Students first.</small></div>';
+      // Show helpful message with option to add demo students
+      grid.innerHTML =
+        '<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:1.25rem;margin-bottom:1rem;">' +
+          '<strong style="color:#856404;">⚠️ No students found in ' + cls + '</strong><br>' +
+          '<div style="font-size:0.82rem;color:#856404;margin-top:6px;">Total students in Firebase: ' + allStudents.length + '</div>' +
+          '<div style="font-size:0.82rem;color:#856404;">You need to add students in Admin Dashboard → Students tab first.</div>' +
+        '</div>' +
+        '<button onclick="quickAddDemoStudents(\'' + cls + '\')" style="background:var(--navy);color:white;border:none;padding:10px 20px;border-radius:8px;font-size:0.875rem;cursor:pointer;font-weight:600;">➕ Add 5 Demo Students to ' + cls + '</button>';
       return;
     }
 
-    // Load today's existing attendance
-    const today = new Date().toISOString().split('T')[0];
+    // Load today's saved attendance
+    var today = new Date().toISOString().split('T')[0];
     teacherAttRecords = {};
     try {
-      const attDoc = await db.collection('attendance').doc(today + '_' + cls.replace(/\s/g,'_')).get();
-      if (attDoc.exists) teacherAttRecords = Object.assign({}, attDoc.data().records || {});
-    } catch(e) {}
+      var docKey = today + '_' + cls.replace(/\s/g, '_');
+      var attDoc = await db.collection('attendance').doc(docKey).get();
+      if (attDoc.exists) {
+        teacherAttRecords = Object.assign({}, attDoc.data().records || {});
+      }
+    } catch(e) { /* no existing record is fine */ }
 
-    // Build HTML using string concatenation — avoids nested template literal issues
-    var html = '<div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;">';
-    html += '<button onclick="markAllAttendance(\'present\')" style="background:var(--success);color:white;border:none;padding:8px 16px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;">✓ Mark All Present</button>';
-    html += '<button onclick="markAllAttendance(\'absent\')" style="background:var(--danger);color:white;border:none;padding:8px 16px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;">✗ Mark All Absent</button>';
-    html += '<span style="font-size:0.82rem;color:var(--gray-600);align-self:center;">' + students.length + ' students &middot; ' + cls + '</span>';
+    // Build the student list HTML
+    var html = '';
+    html += '<div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;">';
+    html += '<button onclick="markAllAttendance(\'present\')" style="background:var(--success);color:white;border:none;padding:8px 16px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;flex:1;">✓ All Present</button>';
+    html += '<button onclick="markAllAttendance(\'absent\')" style="background:var(--danger);color:white;border:none;padding:8px 16px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;flex:1;">✗ All Absent</button>';
+    html += '<span style="font-size:0.82rem;color:var(--gray-600);width:100%;text-align:center;">' + students.length + ' students in ' + cls + '</span>';
     html += '</div>';
 
-    students.forEach(function(s) {
-      var sid = s.studentId || s.id;
+    for (var i = 0; i < students.length; i++) {
+      var s = students[i];
+      var sid = s.studentId || s.admNo || s.id;
       var status = teacherAttRecords[sid] || '';
-      var borderColor = status === 'present' ? 'var(--success)' : status === 'absent' ? 'var(--danger)' : 'var(--gray-200)';
-      var pBg = status === 'present' ? 'var(--success)' : 'var(--gray-100)';
-      var pColor = status === 'present' ? 'white' : 'var(--gray-600)';
-      var aBg = status === 'absent' ? 'var(--danger)' : 'var(--gray-100)';
-      var aColor = status === 'absent' ? 'white' : 'var(--gray-600)';
+      var isPres = status === 'present';
+      var isAbs = status === 'absent';
 
-      html += '<div style="background:var(--white);border-radius:var(--radius);padding:0.875rem 1rem;box-shadow:var(--shadow-sm);display:flex;align-items:center;justify-content:space-between;gap:10px;border-left:3px solid ' + borderColor + ';" id="attrow_' + s.id + '">';
+      html += '<div id="attrow_' + s.id + '" style="' +
+        'background:white;border-radius:8px;padding:12px 14px;' +
+        'box-shadow:0 1px 4px rgba(0,0,0,0.08);' +
+        'display:flex;align-items:center;justify-content:space-between;gap:10px;' +
+        'border-left:4px solid ' + (isPres ? '#1B7A3E' : isAbs ? '#C0392B' : '#e2e8f0') + ';">';
+
       html += '<div>';
-      html += '<strong style="font-size:0.875rem;">' + (s.name || '—') + '</strong>';
-      html += '<div style="font-size:0.72rem;color:var(--gray-400);">' + (s.studentId || '') + (s.dept ? ' · ' + s.dept : '') + '</div>';
+      html += '<div style="font-weight:700;font-size:0.9rem;color:#0B1F4B;">' + (s.name || '—') + '</div>';
+      html += '<div style="font-size:0.72rem;color:#94a3b8;">' + (s.studentId || s.admNo || '') + (s.dept ? ' · ' + s.dept : '') + '</div>';
       html += '</div>';
+
       html += '<div style="display:flex;gap:8px;">';
-      html += '<button onclick="markTeacherAtt(\'' + s.id + '\',\'' + sid + '\',\'present\')" id="att_p_' + s.id + '" style="background:' + pBg + ';color:' + pColor + ';border:none;padding:7px 16px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;">✓ Present</button>';
-      html += '<button onclick="markTeacherAtt(\'' + s.id + '\',\'' + sid + '\',\'absent\')" id="att_a_' + s.id + '" style="background:' + aBg + ';color:' + aColor + ';border:none;padding:7px 16px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;">✗ Absent</button>';
-      html += '</div></div>';
-    });
+      html += '<button id="att_p_' + s.id + '" onclick="markTeacherAtt(\'' + s.id + '\',\'' + sid + '\',\'present\')" ' +
+        'style="border:none;padding:8px 14px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;' +
+        'background:' + (isPres ? '#1B7A3E' : '#f1f5f9') + ';color:' + (isPres ? 'white' : '#475569') + ';">✓ Present</button>';
+      html += '<button id="att_a_' + s.id + '" onclick="markTeacherAtt(\'' + s.id + '\',\'' + sid + '\',\'absent\')" ' +
+        'style="border:none;padding:8px 14px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;' +
+        'background:' + (isAbs ? '#C0392B' : '#f1f5f9') + ';color:' + (isAbs ? 'white' : '#475569') + ';">✗ Absent</button>';
+      html += '</div>';
+      html += '</div>';
+    }
 
     grid.innerHTML = html;
 
   } catch(err) {
-    grid.innerHTML = '<div style="background:#f8d7da;color:#721c24;padding:1rem;border-radius:8px;">Error loading students: ' + err.message + '</div>';
+    grid.innerHTML = '<div style="background:#f8d7da;color:#721c24;padding:1.25rem;border-radius:8px;">' +
+      '❌ <strong>Error:</strong> ' + err.message + '<br><br>' +
+      '<small>Check that your Firestore rules allow read access to students_db collection.</small>' +
+      '</div>';
+  }
+}
+
+// Quick add demo students for a class so attendance can be tested immediately
+async function quickAddDemoStudents(cls) {
+  if (!firebaseReady) { alert('Firebase not connected.'); return; }
+  var names = ['Adewale Ogundimu','Fatima Abdullahi','Emeka Okafor','Blessing Adeyemi','Kunle Adesanya'];
+  var parts = cls.split(' ');
+  var baseCls = parts.slice(0,2).join(' ');
+  var dept = parts.length > 2 ? parts.slice(2).join(' ') : '';
+  try {
+    var batch = db.batch();
+    names.forEach(function(name, i) {
+      var ref = db.collection('students_db').doc();
+      var prefix = cls.replace(/\s/g,'').toUpperCase().substring(0,4);
+      var year = new Date().getFullYear();
+      batch.set(ref, {
+        name: name,
+        cls: baseCls,
+        dept: dept,
+        gender: i % 2 === 0 ? 'Male' : 'Female',
+        type: 'Day Student',
+        house: ['Blue House','Red House','Green House'][i % 3],
+        studentId: 'GGS/' + prefix + '/' + year + '/00' + (i+1),
+        admNo: 'GGS/' + prefix + '/' + year + '/00' + (i+1),
+        createdAt: new Date().toISOString()
+      });
+    });
+    await batch.commit();
+    alert('✅ 5 demo students added to ' + cls + '! Loading attendance...');
+    loadTeacherAttendance();
+  } catch(e) {
+    alert('Error: ' + e.message);
   }
 }
 
