@@ -5626,120 +5626,121 @@ async function loadTeacherAttendance() {
   if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-NG', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
 
   const clsEl = document.getElementById('t_attClass');
-
-  // Auto-fill if teacher has an assigned class
-  if (currentTeacher.cls && clsEl && !clsEl.value) {
-    clsEl.value = currentTeacher.cls;
-  }
-
-  const cls = (clsEl && clsEl.value) ? clsEl.value : '';
+  if (currentTeacher.cls && clsEl && !clsEl.value) clsEl.value = currentTeacher.cls;
+  const cls = clsEl ? clsEl.value : '';
 
   if (!cls) {
-    grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray-400);">Select a class above to load students.</div>';
+    grid.innerHTML = '<div style="text-align:center;padding:2rem;color:#94a3b8;">Select a class above to load students.</div>';
     return;
   }
 
-  grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray-400);">⏳ Loading students for <strong>' + cls + '</strong>...</div>';
+  grid.innerHTML = '<div style="text-align:center;padding:2rem;color:#94a3b8;">⏳ Loading...</div>';
+
+  // Wait for Firebase to be ready — up to 5 seconds
+  let waited = 0;
+  while (!firebaseReady && waited < 50) {
+    await new Promise(r => setTimeout(r, 100));
+    waited++;
+  }
 
   if (!firebaseReady) {
-    grid.innerHTML = '<div style="background:#f8d7da;color:#721c24;padding:1.25rem;border-radius:8px;font-size:0.875rem;">' +
-      '❌ <strong>Firebase not connected.</strong><br><br>' +
-      'Make sure you opened this site from the GitHub Pages URL, not a local file.<br>' +
-      'Also check your Firestore rules allow read/write.</div>';
+    grid.innerHTML = '<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:1.25rem;color:#991b1b;">' +
+      '<strong>❌ Firebase not connected</strong><br><br>' +
+      'Open from GitHub Pages URL — not a local file.<br>' +
+      'Also set Firestore rules to <code>allow read, write: if true;</code>' +
+      '</div>';
     return;
   }
 
   try {
-    // Get all students, filter by class client-side
+    // Parse class
+    const parts = cls.trim().split(' ');
+    const baseCls = parts.slice(0, 2).join(' ');
+    const dept = parts.length > 2 ? parts.slice(2).join(' ') : '';
+
+    // Get ALL students then filter
     const snap = await db.collection('students_db').get();
+    const total = snap.docs.length;
 
-    // Parse class — e.g. "SSS 1 Science" → baseCls="SSS 1", dept="Science"
-    var parts = cls.trim().split(' ');
-    var baseCls = parts.slice(0, 2).join(' ');  // e.g. "SSS 1"
-    var dept = parts.length > 2 ? parts.slice(2).join(' ') : ''; // e.g. "Science"
-
-    var allStudents = snap.docs.map(function(d) {
-      return Object.assign({ id: d.id }, d.data());
-    });
-
-    var students = allStudents.filter(function(s) {
-      var sClass = (s.cls || s.class || '').trim();
-      var sDept = (s.dept || '').trim();
-      // Match base class
-      if (sClass !== baseCls) return false;
-      // If department selected, match it
-      if (dept && sDept && sDept !== dept) return false;
-      return true;
-    }).sort(function(a, b) {
-      return (a.name || '').localeCompare(b.name || '');
-    });
+    const students = snap.docs
+      .map(d => ({ _docId: d.id, ...d.data() }))
+      .filter(s => {
+        const sc = (s.cls || s.class || '').trim().toLowerCase();
+        const sd = (s.dept || '').trim().toLowerCase();
+        const bcl = baseCls.toLowerCase();
+        const dpt = dept.toLowerCase();
+        if (sc !== bcl) return false;
+        if (dpt && sd && sd !== dpt) return false;
+        return true;
+      })
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     if (!students.length) {
-      // Show helpful message with option to add demo students
+      // Show what classes exist in the database to help debug
+      const existingClasses = [...new Set(snap.docs.map(d => d.data().cls || d.data().class || 'unknown'))].filter(Boolean).sort();
+
       grid.innerHTML =
-        '<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:1.25rem;margin-bottom:1rem;">' +
-          '<strong style="color:#856404;">⚠️ No students found in ' + cls + '</strong><br>' +
-          '<div style="font-size:0.82rem;color:#856404;margin-top:6px;">Total students in Firebase: ' + allStudents.length + '</div>' +
-          '<div style="font-size:0.82rem;color:#856404;">You need to add students in Admin Dashboard → Students tab first.</div>' +
+        '<div style="background:#fffbeb;border:1px solid #fbbf24;border-radius:10px;padding:1.25rem;margin-bottom:12px;">' +
+          '<strong style="color:#92400e;">⚠️ No students found in "' + cls + '"</strong><br><br>' +
+          '<div style="font-size:0.82rem;color:#92400e;">' +
+            'Total students in database: <strong>' + total + '</strong><br>' +
+            (existingClasses.length ? 'Classes in database: <strong>' + existingClasses.join(', ') + '</strong>' : 'No students added yet.') +
+          '</div>' +
         '</div>' +
-        '<button onclick="quickAddDemoStudents(\'' + cls + '\')" style="background:var(--navy);color:white;border:none;padding:10px 20px;border-radius:8px;font-size:0.875rem;cursor:pointer;font-weight:600;">➕ Add 5 Demo Students to ' + cls + '</button>';
+        '<button onclick="quickAddDemoStudents(\'' + cls + '\')" ' +
+          'style="width:100%;background:#0B1F4B;color:white;border:none;padding:12px;border-radius:8px;font-size:0.875rem;cursor:pointer;font-weight:600;">' +
+          '➕ Add 5 Test Students to ' + cls +
+        '</button>';
       return;
     }
 
     // Load today's saved attendance
-    var today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0];
     teacherAttRecords = {};
     try {
-      var docKey = today + '_' + cls.replace(/\s/g, '_');
-      var attDoc = await db.collection('attendance').doc(docKey).get();
-      if (attDoc.exists) {
-        teacherAttRecords = Object.assign({}, attDoc.data().records || {});
-      }
-    } catch(e) { /* no existing record is fine */ }
+      const attDoc = await db.collection('attendance').doc(today + '_' + cls.replace(/\s/g, '_')).get();
+      if (attDoc.exists) teacherAttRecords = Object.assign({}, attDoc.data().records || {});
+    } catch(e) {}
 
-    // Build the student list HTML
-    var html = '';
-    html += '<div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;">';
-    html += '<button onclick="markAllAttendance(\'present\')" style="background:var(--success);color:white;border:none;padding:8px 16px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;flex:1;">✓ All Present</button>';
-    html += '<button onclick="markAllAttendance(\'absent\')" style="background:var(--danger);color:white;border:none;padding:8px 16px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;flex:1;">✗ All Absent</button>';
-    html += '<span style="font-size:0.82rem;color:var(--gray-600);width:100%;text-align:center;">' + students.length + ' students in ' + cls + '</span>';
-    html += '</div>';
+    // Build HTML
+    let html = '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">' +
+      '<button onclick="markAllAttendance(\'present\')" style="flex:1;background:#15803d;color:white;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.875rem;">✓ All Present</button>' +
+      '<button onclick="markAllAttendance(\'absent\')" style="flex:1;background:#dc2626;color:white;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.875rem;">✗ All Absent</button>' +
+      '</div>' +
+      '<div style="font-size:0.82rem;color:#64748b;margin-bottom:10px;text-align:center;">' + students.length + ' students in ' + cls + '</div>';
 
-    for (var i = 0; i < students.length; i++) {
-      var s = students[i];
-      var sid = s.studentId || s.admNo || s.id;
-      var status = teacherAttRecords[sid] || '';
-      var isPres = status === 'present';
-      var isAbs = status === 'absent';
+    students.forEach(s => {
+      const sid = s.studentId || s.admNo || s._docId;
+      const st = teacherAttRecords[sid] || '';
+      const isPres = st === 'present';
+      const isAbs  = st === 'absent';
 
-      html += '<div id="attrow_' + s.id + '" style="' +
-        'background:white;border-radius:8px;padding:12px 14px;' +
-        'box-shadow:0 1px 4px rgba(0,0,0,0.08);' +
-        'display:flex;align-items:center;justify-content:space-between;gap:10px;' +
-        'border-left:4px solid ' + (isPres ? '#1B7A3E' : isAbs ? '#C0392B' : '#e2e8f0') + ';">';
-
-      html += '<div>';
-      html += '<div style="font-weight:700;font-size:0.9rem;color:#0B1F4B;">' + (s.name || '—') + '</div>';
-      html += '<div style="font-size:0.72rem;color:#94a3b8;">' + (s.studentId || s.admNo || '') + (s.dept ? ' · ' + s.dept : '') + '</div>';
-      html += '</div>';
-
-      html += '<div style="display:flex;gap:8px;">';
-      html += '<button id="att_p_' + s.id + '" onclick="markTeacherAtt(\'' + s.id + '\',\'' + sid + '\',\'present\')" ' +
-        'style="border:none;padding:8px 14px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;' +
-        'background:' + (isPres ? '#1B7A3E' : '#f1f5f9') + ';color:' + (isPres ? 'white' : '#475569') + ';">✓ Present</button>';
-      html += '<button id="att_a_' + s.id + '" onclick="markTeacherAtt(\'' + s.id + '\',\'' + sid + '\',\'absent\')" ' +
-        'style="border:none;padding:8px 14px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;' +
-        'background:' + (isAbs ? '#C0392B' : '#f1f5f9') + ';color:' + (isAbs ? 'white' : '#475569') + ';">✗ Absent</button>';
-      html += '</div>';
-      html += '</div>';
-    }
+      html +=
+        '<div id="attrow_' + s._docId + '" style="background:white;border-radius:10px;padding:12px 14px;margin-bottom:6px;' +
+          'box-shadow:0 1px 4px rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:space-between;gap:8px;' +
+          'border-left:4px solid ' + (isPres ? '#15803d' : isAbs ? '#dc2626' : '#e2e8f0') + ';">' +
+          '<div>' +
+            '<div style="font-weight:700;font-size:0.9rem;color:#0B1F4B;">' + (s.name || '—') + '</div>' +
+            '<div style="font-size:0.72rem;color:#94a3b8;">' + (sid || '') + (s.dept ? ' · ' + s.dept : '') + '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:6px;">' +
+            '<button id="att_p_' + s._docId + '" onclick="markTeacherAtt(\'' + s._docId + '\',\'' + sid + '\',\'present\')" ' +
+              'style="border:none;padding:8px 12px;border-radius:8px;font-size:0.8rem;font-weight:700;cursor:pointer;' +
+              'background:' + (isPres ? '#15803d' : '#f1f5f9') + ';color:' + (isPres ? 'white' : '#475569') + ';">✓</button>' +
+            '<button id="att_a_' + s._docId + '" onclick="markTeacherAtt(\'' + s._docId + '\',\'' + sid + '\',\'absent\')" ' +
+              'style="border:none;padding:8px 12px;border-radius:8px;font-size:0.8rem;font-weight:700;cursor:pointer;' +
+              'background:' + (isAbs ? '#dc2626' : '#f1f5f9') + ';color:' + (isAbs ? 'white' : '#475569') + ';">✗</button>' +
+          '</div>' +
+        '</div>';
+    });
 
     grid.innerHTML = html;
 
   } catch(err) {
-    grid.innerHTML = '<div style="background:#f8d7da;color:#721c24;padding:1.25rem;border-radius:8px;">' +
-      '❌ <strong>Error:</strong> ' + err.message + '<br><br>' +
-      '<small>Check that your Firestore rules allow read access to students_db collection.</small>' +
+    grid.innerHTML =
+      '<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:1.25rem;color:#991b1b;">' +
+        '<strong>❌ Error: </strong>' + err.message +
+        '<br><br><small>Check Firestore rules: <code>allow read, write: if true;</code></small>' +
       '</div>';
   }
 }
